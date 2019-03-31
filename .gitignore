@@ -1,0 +1,8 @@
+/.idea
+*.log*
+
+src/__pycache__/
+
+src/utils/__pycache__/
+
+config/sync_config\.yml

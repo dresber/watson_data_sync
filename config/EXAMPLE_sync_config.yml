@@ -1,0 +1,23 @@
+# ------------------------------------------------------- #
+#               config file for watson sync
+# ------------------------------------------------------- #
+general:
+  debug_level: debug
+
+# ------------------------------------------------------- #
+#                   watson settings
+# ------------------------------------------------------- #
+watson:
+  frames_path: #only required if the path is not the default
+  user_name: homer #will be added to each frame to sort in ES
+  user_team: simpsons #will be added to each frame to sort in ES
+  sync_period_in_months: 3
+
+# ------------------------------------------------------- #
+#                elasticsearch settings
+# ------------------------------------------------------- #
+elastic:
+  server: localhost
+  port: 9200
+  index_name: watson_data
+  doc_type: WatsonFrame
