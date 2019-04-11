@@ -27,6 +27,7 @@ logger = LoggingHandle()
 #               classes                   #
 # --------------------------------------- #
 class ESHandle(object):
+    DEFAULT_SEARCH_SIZE = 1000
     """ does the connection and handling with ES server
     """
     def __init__(self, host, port):
@@ -47,9 +48,9 @@ class ESHandle(object):
         except Exception as e:
             logger.error(MODULE_LOGGER_HEAD + "could not upload doc reason: {}".format(e))
 
-    def get_doc(self, index_name, doc_type, query=None):
+    def get_doc(self, index_name, doc_type, query=None, search_size=DEFAULT_SEARCH_SIZE):
         try:
-            return self.es.search(index=index_name, doc_type=doc_type, body=query)
+            return self.es.search(index=index_name, doc_type=doc_type, body=query, size=search_size)
         except Exception as e:
             logger.error(MODULE_LOGGER_HEAD + "could not get document from ES reason: {}".format(e))
 

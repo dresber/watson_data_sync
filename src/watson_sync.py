@@ -25,6 +25,7 @@ APP_VERSION = "v99-99-99"
 # --------------------------------------- #
 logger = LoggingHandle()
 
+
 # --------------------------------------- #
 #              functions                  #
 # --------------------------------------- #
@@ -79,8 +80,9 @@ if __name__ == "__main__":
                     raw_frames[idx] = frames_to_pull[frame[TOKEN_POS]]
                     del frames_to_pull[frame[TOKEN_POS]]
 
-            for raw_frame in frames_to_pull:
-                raw_frames.append(raw_frame)
+            for token, frame in frames_to_pull.items():
+                logger.debug(MODULE_LOGGER_HEAD + "append frame {}".format(token))
+                raw_frames.append(frame.create_raw_frame())
 
             json.dump(raw_frames, frames_f, indent=1, ensure_ascii=False)
 

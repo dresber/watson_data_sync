@@ -50,6 +50,13 @@ def _create_token_query(token, user):
             }}}
 
 
+def _create_user_query(user):
+    return {"query": {
+            "bool": {
+                "must": [{"match": {"user": user}}]
+            }}}
+
+
 def _create_es_doc(frame, user, team):
     es_doc = frame.create_es_doc()
     es_doc["user"] = user
@@ -85,12 +92,19 @@ def _convert_es_doc_to_raw_frame(es_data):
 class WatsonFrame(object):
     """ class to handle each frame as an object an create the ES doc directly
     """
-    def __init__(self, raw_frame):
+    def __init__(self):
+        self.start_time = 0
+        self.stop_time = 0
+        self.change_time = 0
+        self.project = ""
+        self.token = ""
+        self.tags = []
+
+    def create_frame_from_watson(self, raw_frame):
         self.start_time = raw_frame[START_TIME_POS]
         self.stop_time = raw_frame[STOP_TIME_POS]
         self.change_time = raw_frame[CHANGE_TIME_POS]
         self.project = raw_frame[PROJECT_NAME_POS]
-        self.duration = raw_frame[STOP_TIME_POS] - raw_frame[START_TIME_POS]
         self.token = raw_frame[TOKEN_POS]
         self.tags = raw_frame[TAGS_POS]
 
@@ -98,14 +112,35 @@ class WatsonFrame(object):
         return {"start_time": self._create_utc_from_timestamp(self.start_time),
                 "stop_time": self._create_utc_from_timestamp(self.stop_time),
                 "token": self.token,
-                "duration": (self.stop_time-self.start_time)/3600,
+                "duration": self.duration()/3600,
                 "tags": self.tags,
                 "storage_time": self._create_utc_from_timestamp(self.change_time),
                 "project": self.project}
 
+    def create_raw_frame(self):
+        raw_frame = [0] * 6
+        raw_frame[START_TIME_POS] = self.start_time
+        raw_frame[STOP_TIME_POS] = self.stop_time
+        raw_frame[CHANGE_TIME_POS] = self.change_time
+        raw_frame[PROJECT_NAME_POS] = self.project
+        raw_frame[TOKEN_POS] = self.token
+        raw_frame[TAGS_POS] = self.tags
+        return raw_frame
+
     @staticmethod
     def _create_utc_from_timestamp(timestamp):
         return datetime.utcfromtimestamp(timestamp)
+
+    def duration(self):
+        return self.stop_time - self.start_time
+
+    def create_frame_from_es(self, es_data):
+        self.start_time = _create_timestamp_from_date(es_data["start_time"])
+        self.stop_time = _create_timestamp_from_date(es_data["stop_time"])
+        self.change_time = _create_timestamp_from_date(es_data["storage_time"])
+        self.project = es_data["project"]
+        self.token = es_data["token"]
+        self.tags = es_data["tags"]
 
 
 class FrameHandle(object):
@@ -123,7 +158,8 @@ class FrameHandle(object):
         self.frames = {}
 
         for frame in raw_frames:
-            self.frames[frame[TOKEN_POS]] = WatsonFrame(frame)
+            self.frames[frame[TOKEN_POS]] = WatsonFrame()
+            self.frames[frame[TOKEN_POS]].create_frame_from_watson(frame)
 
     def synchronize_frames(self):
         """ does an automatic push of frames which are not on ES or older than locally, if there are duplicated tokens
@@ -147,6 +183,15 @@ class FrameHandle(object):
                 self.es.update_doc(self.es_index_name, self.es_doc_type, id=data["_id"], doc_dict=_create_es_doc(frame,
                                                                                                         self.user_name,
                                                                                                         self.user_team))
+
+        for es_frame in self._get_all_user_frames():
+            tmp_frame = WatsonFrame()
+            try:
+                tmp_frame.create_frame_from_es(es_frame["_source"])
+                if tmp_frame.token not in self.frames:
+                    frames_to_pull[tmp_frame.token] = tmp_frame
+            except Exception as e:
+                logger.error(MODULE_LOGGER_HEAD + "could not convert token {} due to exception: {}".format(es_frame["_source"], e))
 
         return frames_to_pull
 
@@ -174,6 +219,11 @@ class FrameHandle(object):
         else:
             return SyncState.PUSH_FRAME, None
 
+    def _get_all_user_frames(self):
+        result = self.es.get_doc(self.es_index_name, self.es_doc_type, _create_user_query(self.user_name))
+        if result["hits"]["total"] > 0:
+            return result["hits"]["hits"]
+        return []
 
 # --------------------------------------- #
 #                main                     #
